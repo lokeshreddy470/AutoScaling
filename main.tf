@@ -45,7 +45,7 @@ resource "aws_launch_configuration" "example" {
 resource "aws_autoscaling_group" "example" {
   launch_configuration = "${aws_launch_configuration.example.id}"
   availability_zones = ["${data.aws_availability_zones.all.names}"]
-  min_size = 2
+  min_size = 1
   max_size = 5
   load_balancers = ["${aws_elb.example.name}"]
   health_check_type = "ELB"
@@ -59,7 +59,7 @@ resource "aws_autoscaling_group" "example" {
 
 ## Security Group for ELB
 resource "aws_security_group" "elb" {
-  name = "terraform-elb"
+  name = "terraform-elb1"
   vpc_id = "${var.vpc}"
   egress {
     from_port = 0
@@ -113,6 +113,16 @@ resource "aws_autoscaling_policy" "agents-scale-down" {
     autoscaling_group_name = "${aws_autoscaling_group.example.name}"
 }
 
+resource "aws_autoscaling_schedule" "scheduling" {
+  scheduled_action_name  = "schedule_scaling"
+  min_size               = 2
+  max_size               = 4
+  desired_capacity       = 3
+  start_time             = "2019-10-10T18:55:00Z"
+  end_time               = "2019-10-10T19:00:00Z"
+  autoscaling_group_name = "${aws_autoscaling_group.example.name}"
+}
+
 resource "aws_cloudwatch_metric_alarm" "memory-high" {
     alarm_name = "mem-util-high-agents"
     comparison_operator = "GreaterThanOrEqualToThreshold"
@@ -121,7 +131,7 @@ resource "aws_cloudwatch_metric_alarm" "memory-high" {
     namespace = "System/Linux"
     period = "300"
     statistic = "Average"
-    threshold = "80"
+    threshold = "60"
     alarm_description = "This metric monitors ec2 memory for high utilization on agent hosts"
     alarm_actions = [
         "${aws_autoscaling_policy.agents-scale-up.arn}"
@@ -147,4 +157,40 @@ resource "aws_cloudwatch_metric_alarm" "memory-low" {
     dimensions {
         AutoScalingGroupName = "${aws_autoscaling_group.example.name}"
     }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu-high" {
+  alarm_name          = "cpu-util-high-agents"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "80"
+
+  dimensions = {
+    AutoScalingGroupName = "${aws_autoscaling_group.example.name}"
+  }
+
+  alarm_description = "This metric monitors ec2 cpu utilization"
+  alarm_actions     = ["${aws_autoscaling_policy.agents-scale-up.arn}"]
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu-low" {
+  alarm_name          = "cpu-util-low-agents"
+  comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "40"
+
+  dimensions = {
+    AutoScalingGroupName = "${aws_autoscaling_group.example.name}"
+  }
+
+  alarm_description = "This metric monitors ec2 cpu utilization"
+  alarm_actions     = ["${aws_autoscaling_policy.agents-scale-down.arn}"]
 }
