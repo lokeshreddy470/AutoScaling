@@ -1,5 +1,5 @@
 
-data "aws_availability_zones" "all" {}
+#data "aws_availability_zones" "all" {}
 
 ### Creating Security Group for EC2
 resource "aws_security_group" "instance" {
